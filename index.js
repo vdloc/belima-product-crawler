@@ -7,43 +7,24 @@ let data = [];
 let pages = [];
 
 async function init() {
-  const browser = await puppeteer.launch();
+  const browser = await puppeteer.launch({ headless: "new" });
   const pageProcessor = processPage(browser);
-  const pageUrls = Array.from({ length: 1 }, (_, index) =>
-    getPageURL(18 + index)
+  const pageUrls = Array.from({ length: 100 }, (_, index) =>
+    getPageURL(15 + index)
   );
 
   for await (const pageURL of pageUrls) {
     await pageProcessor(pageURL);
   }
 
-  await write("output.csv", transformDataToCSV(data));
-  await write("urls.json", JSON.stringify(pages));
+  await exportData();
   await browser.close();
 }
 
-const csvKeyMapping = [
-  "URL",
-  "Artikelnummer",
-  "Produktname",
-  "Preis Flachkanal",
-  "Preis Ventilation",
-  "Kurze Beschreibung",
-  "Artikelbeschreibung",
-  "Bild URL",
-  "Manufactor",
-  "Meta Title",
-  "Meta Beschreibung",
-];
-
-function convertToCSV(arr) {
-  const array = csvKeyMapping.concat(arr);
-
-  return array
-    .map((it) => {
-      return Object.values(it).toString();
-    })
-    .join("\n");
+async function exportData() {
+  await write("output.csv", transformDataToCSV(data));
+  await write("urls.json", JSON.stringify(pages));
+  console.log("Exported data!");
 }
 
 function transformDataToCSV() {
@@ -85,6 +66,7 @@ function getPrice2(price1) {
 const processProduct = (browser) =>
   async function (url) {
     const page = await browser.newPage();
+    page.setDefaultTimeout(0);
     await page.goto(url);
     const productData = {
       url,
@@ -107,15 +89,16 @@ const processProduct = (browser) =>
       'h1.product-title[itemprop="name"]',
       (el) => el.textContent.trim()
     );
-
     try {
       productData.price1 = await page.$eval('meta[itemprop="price"]', (el) =>
         el.getAttribute("content")
       );
     } catch (error) {
-      productData.price1 = await page.$eval(".price_label", (el) =>
-        el.textContent.trim()
-      );
+      try {
+        productData.price1 = await page.$eval(".price_label", (el) =>
+          el.textContent.replace("€", "").trim()
+        );
+      } catch (error) {}
     }
     productData.price2 = getPrice2(productData.price1);
     productData.shortDesc = await page.$eval(".shortdesc", (el) =>
@@ -124,7 +107,7 @@ const processProduct = (browser) =>
     productData.longDesc = await page.$eval(".desc > p", (el) =>
       el.innerHTML
         .replaceAll("\n", "")
-        .replaceAll('"', "”")
+        .replaceAll('"', '""')
         .trim()
         .replaceAll("<br>", "\n")
     );
@@ -137,8 +120,15 @@ const processProduct = (browser) =>
 
 const processPage = (browser) => async (url) => {
   const page = await browser.newPage();
+  page.setDefaultTimeout(0);
   const productProcessor = processProduct(browser);
-  await page.goto(url);
+  try {
+    await page.goto(url);
+  } catch (error) {
+    console.log(error);
+    console.log("End of the adventure!!!");
+    await exportData();
+  }
   console.log("Page URL: ", url);
   const productCards = await page.$$(".product-wrapper");
   const productURLs = productCards.map(async (productCard) => {
