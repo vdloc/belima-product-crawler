@@ -10,9 +10,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "cacheable-lookup": "^7.0.0",
     "csv": "^6.3.0",
+    "node-fetch-retry": "^2.0.1",
     "puppeteer": "^20.2.1",
-    "write-file-utf8": "^3.0.0"
+    "write-file-utf8": "^3.0.0",
+    "xlsx": "^0.18.5"
   },
   "type": "module"
 }
